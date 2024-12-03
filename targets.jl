@@ -15,9 +15,9 @@ end
 
 
 # Normal mixture target
-norm_mix_lpdf = log_density_generator(
-    MixtureModel(MvNormal, [([1,2],[1 0.5;0.5 4]), ([-3,-1],[9 2;2 1]), 
-    ([2,-4],[0.25 -0.15;-0.15 0.49])], [1/2, 1/3, 1/6]))
+norm_mix_target = MixtureModel(MvNormal, [([1,2],[1 0.5;0.5 4]), ([-3,-1],[9 2;2 1]), 
+([2,-4],[0.25 -0.15;-0.15 0.49])], [1/2, 1/3, 1/6])
+norm_mix_lpdf = log_density_generator(norm_mix_target)
 
 # Banana target
 @model function Banana()

@@ -1,35 +1,52 @@
 using MCMCChains
 include("State_object.jl")
+include("explorers.jl")
 
-mutable struct RWMH_sampler{R,T}
-    """ Step size. """
-    step_size::R
-    """ Correlation structure. """
-    S::T
+sample_step(explorer::RWMH, rng, t) = if explorer.dimension == 1
+        return randn(rng)*sqrt(explorer.step)
+    else
+        return rand(rng,MvNormal(explorer.step))
+    end
+
+sample_step(explorer::AM, rng, t) = if explorer.dimension == 1
+        return randn(rng)*sqrt(explorer.Sigma[1])
+    else
+        return rand(rng,MvNormal(explorer.Sigma))
+    end
+
+function sample_step(explorer::RRWMH, rng, t)
+    sigma = Diagonal([sqrt(abs(rand(rng,qi))) for qi in explorer.q])
+    sigma = sigma * Diagonal(explorer.Sigma)^(-1/2)
+    step = sigma * explorer.Sigma * sigma
+    step = (step + step')./2 # to make sure step is positive definite
+    #@show step
+    if explorer.dimension == 1
+        return randn(rng)*sqrt(step[1])
+    else
+        return rand(rng,MvNormal(step))
+    end
 end
+    
+
 
 # step function
-function step!(explorer::RWMH_sampler, replica::State_object, log_potential, state_update!)
+function step!(explorer, replica::State_object, log_potential, t)
     lp = replica.lp
-    lp = RWMH_sample!(explorer, replica, log_potential, lp)    # update chain state
+    lp = RWMH_sample!(explorer, replica, log_potential, lp, t)    # update chain state
     replica.lp = lp    
-    state_update!(explorer, replica)                                       # other state related updates (for adaptation)
     return lp
 end
 
 
 # sample coordinate
-function RWMH_sample!(explorer::RWMH_sampler, replica::State_object, log_potential, cached_lp)
+function RWMH_sample!(explorer, replica::State_object, log_potential, cached_lp, t)
     d = length(replica.state)
     rng = replica.rng
 
     # propose
     state_before = copy(replica.state)    # store previous state
-    if d == 1
-        replica.state = state_before .+ rand(rng,Normal(0,sqrt(explorer.S))) .* rand(rng,explorer.step_size)
-    else
-        replica.state = state_before .+ rand(rng,MvNormal(explorer.S)) .* rand(rng,explorer.step_size)
-    end
+    eps = sample_step(explorer,rng,t)
+    replica.state = state_before .+ eps
     log_pr_after = log_potential(replica.state)
     # accept-reject step
     accept_ratio = log_pr_after - cached_lp
@@ -44,15 +61,16 @@ end
 
 
 # run MCMC chain
-function run!(explorer::RWMH_sampler, replica::State_object, N::Int, log_potential, state_update!)
+function run!(explorer, replica::State_object, N::Int, log_potential, update_func!)
     d = length(replica.state)
     chain = Array{Float64}(undef,N,d+1)
     chain[1,:] = vcat(replica.state,replica.lp)
 
 
     for i in 2:N
-        step!(explorer, replica, log_potential, state_update!)
+        step!(explorer, replica, log_potential, i)
         chain[i,:] = vcat(replica.state,replica.lp)
+        update_func!(explorer, chain, i)                         # adaptation
     end
 
     param_names = ["Parameter $i" for i in 1:d]
