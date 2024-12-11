@@ -17,9 +17,7 @@ sample_step(explorer::AM, rng, t) = if explorer.dimension == 1
 function sample_step(explorer::RRWMH, rng, t)
     sigma = Diagonal([sqrt(abs(rand(rng,qi))) for qi in explorer.q])
     sigma = sigma * Diagonal(explorer.Sigma)^(-1/2)
-    step = sigma * explorer.Sigma * sigma
-    step = (step + step')./2 # to make sure step is positive definite
-    #@show step
+    step = Symmetric(sigma * explorer.Sigma * sigma)
     if explorer.dimension == 1
         return randn(rng)*sqrt(step[1])
     else
@@ -70,7 +68,7 @@ function run!(explorer, replica::State_object, N::Int, log_potential, update_fun
     for i in 2:N
         step!(explorer, replica, log_potential, i)
         chain[i,:] = vcat(replica.state,replica.lp)
-        update_func!(explorer, chain, i)                         # adaptation
+        update_func!(replica, explorer, chain, i)                         # adaptation
     end
 
     param_names = ["Parameter $i" for i in 1:d]

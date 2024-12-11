@@ -1,9 +1,9 @@
 # No adaptation
-function no_update!(explorer::RWMH, chain, t) end
+function no_update!(replica, explorer::RWMH, chain, t) end
 
 
 # AM adaptation
-function AM_update!(explorer::AM, chain, t)
+function AM_update!(replica, explorer::AM, chain, t)
     state = chain[t,1:explorer.dimension]
     c_state = state .- explorer.mu
     explorer.mu .= explorer.mu .+ t^(-1) .* c_state
@@ -13,7 +13,7 @@ end
 
 # RRWMH adaptation
 # other_stats = (θ_(t-win_len), Σ θ, Σ θ², )
-function RRWMH_update!(explorer::RRWMH, chain, t)
+function RRWMH_update!(replica, explorer::RRWMH, chain, t)
     state =  @view chain[t,1:explorer.dimension]
     last_state = @view chain[max(t-explorer.win_len,1),1:explorer.dimension]
     
